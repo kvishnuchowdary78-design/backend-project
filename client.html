@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Real-Time Chat</title>
+</head>
+<body>
+
+<h2>🔥 Real-Time Chat</h2>
+
+<input id="username" placeholder="Enter username">
+<br><br>
+
+<input id="msg" placeholder="Enter message">
+<button onclick="sendMessage()">Send</button>
+
+<ul id="messages"></ul>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+<script>
+  const socket = io("http://localhost:5000");
+
+  // When connected
+  socket.on("connect", () => {
+    console.log("Connected:", socket.id);
+  });
+
+  // Receive message
+  socket.on("message_broadcast", (data) => {
+    const li = document.createElement("li");
+    li.innerText = data.user + ": " + data.text;
+    document.getElementById("messages").appendChild(li);
+  });
+
+  // Send message
+  function sendMessage() {
+    const username = document.getElementById("username").value;
+    const msg = document.getElementById("msg").value;
+
+    socket.emit("message", {
+      user: username,
+      text: msg
+    });
+
+    // Clear input
+    document.getElementById("msg").value = "";
+  }
+</script>
+
+</body>
+</html>

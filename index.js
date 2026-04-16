@@ -1,98 +1,52 @@
 require('dotenv').config();
 
 const express = require('express');
-const connectDB = require('./db');
-const User = require('./models/User');
-const Post = require('./models/Post');
-
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const auth = require('./middleware/auth');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const server = http.createServer(app);
 
-// Middleware
-app.use(express.json());
+// 🔥 Socket Server
+const io = new Server(server, {
+  cors: { origin: "*" }
+});
 
-// Connect DB
-connectDB();
-
-// -------------------- BASIC --------------------
+// Basic route
 app.get('/', (req, res) => {
   res.send('Server Running');
 });
 
-// -------------------- REGISTER --------------------
-app.post('/register', async (req, res) => {
-  try {
-    const newUser = new User(req.body);
-    const savedUser = await newUser.save();
+// 🔥 Socket Logic
+io.on('connection', (socket) => {
+  console.log("User connected:", socket.id);
 
-    res.status(201).json(savedUser);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
+  // 🔹 Receive message and broadcast
+  socket.on('message', (data) => {
+    console.log("Message received:", data);
+
+    io.emit('message_broadcast', data);
+  });
+
+  // 🔹 Join room
+  socket.on('join_room', (room) => {
+    socket.join(room);
+    console.log(`User joined room: ${room}`);
+  });
+
+  // 🔹 Send message to specific room
+  socket.on('send_room_message', (data) => {
+    io.to(data.room).emit('room_message', data);
+  });
+
+  // Disconnect
+  socket.on('disconnect', () => {
+    console.log("User disconnected");
+  });
 });
 
-// -------------------- LOGIN --------------------
-app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ msg: "User not found" });
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ msg: "Invalid password" });
-
-    const token = jwt.sign(
-      { id: user._id },
-      "my_secret_key",
-      { expiresIn: "1h" }
-    );
-
-    res.json({
-      token,
-      user: { id: user._id, username: user.username }
-    });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// -------------------- CREATE POST --------------------
-app.post('/api/posts', auth, async (req, res) => {
-  try {
-    const newPost = new Post({
-      title: req.body.title,
-      content: req.body.content,
-      author: req.user.id
-    });
-
-    const post = await newPost.save();
-    res.json(post);
-
-  } catch (err) {
-    res.status(500).send('Server Error');
-  }
-});
-
-// -------------------- GET POSTS (POPULATE) --------------------
-app.get('/api/posts', async (req, res) => {
-  try {
-    const posts = await Post.find()
-      .populate('author', ['username', 'email']);
-
-    res.json(posts);
-
-  } catch (err) {
-    res.status(500).send('Server Error');
-  }
-});
-
-// -------------------- SERVER --------------------
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// Start server
+const PORT = 5000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
