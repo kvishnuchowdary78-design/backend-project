@@ -2,51 +2,50 @@ require('dotenv').config();
 
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
+const { Worker } = require('worker_threads');
 
 const app = express();
 const server = http.createServer(app);
 
-// 🔥 Socket Server
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+// Middleware
+app.use(express.json());
 
-// Basic route
+// ------------------ BASIC ROUTE ------------------
 app.get('/', (req, res) => {
-  res.send('Server Running');
+  res.send('Server Running 🚀');
 });
 
-// 🔥 Socket Logic
-io.on('connection', (socket) => {
-  console.log("User connected:", socket.id);
+// ------------------ TEST ROUTE ------------------
+app.get('/test', (req, res) => {
+  res.send("✅ Server is still responsive!");
+});
 
-  // 🔹 Receive message and broadcast
-  socket.on('message', (data) => {
-    console.log("Message received:", data);
+// ------------------ HEAVY TASK ROUTE ------------------
+app.get('/api/heavy-task', (req, res) => {
+  console.log("🔵 Request received at:", new Date().toLocaleTimeString());
 
-    io.emit('message_broadcast', data);
+  const worker = new Worker('./worker.js', {
+    workerData: { iterations: 100000000 }
   });
 
-  // 🔹 Join room
-  socket.on('join_room', (room) => {
-    socket.join(room);
-    console.log(`User joined room: ${room}`);
+  worker.on('message', (result) => {
+    console.log("🟢 Result received at:", new Date().toLocaleTimeString());
+
+    res.json({
+      success: true,
+      result
+    });
   });
 
-  // 🔹 Send message to specific room
-  socket.on('send_room_message', (data) => {
-    io.to(data.room).emit('room_message', data);
-  });
-
-  // Disconnect
-  socket.on('disconnect', () => {
-    console.log("User disconnected");
+  worker.on('error', (err) => {
+    console.error("❌ Worker error:", err);
+    res.status(500).json({ error: err.message });
   });
 });
 
-// Start server
+// ------------------ START SERVER ------------------
 const PORT = 5000;
+
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
